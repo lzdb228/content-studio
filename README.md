@@ -63,6 +63,26 @@ NODE_ENV=development npm run tauri build
 # Linux → src-tauri/target/release/bundle/deb/
 ```
 
+### 6. 原型部署（双轨）
+
+原型同时支持 GitHub Pages + 自有服务器：
+
+| 环境 | 门户 | 内容工坊 |
+|------|------|------|
+| **GitHub Pages** | https://lzdb228.github.io/content-studio/ | 点击卡片进入 |
+| **248 服务器** | http://47.98.184.248:8889/ | 点击卡片进入 |
+
+```bash
+# 构建原型（base: "./" 相对路径 + HashRouter）
+NODE_ENV=development npm run build
+
+# 部署到 248
+./deploy-prototype.sh
+
+# 部署到 GitHub Pages
+python3 deploy_gh_pages.py
+```
+
 ## 项目结构
 
 ```
