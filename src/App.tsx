@@ -5,6 +5,8 @@ import SettingsPage from "./pages/SettingsPage";
 import DashboardPage from "./pages/DashboardPage";
 import CollectPage from "./pages/CollectPage";
 import LibraryPage from "./pages/LibraryPage";
+import DistillPage from "./pages/DistillPage";
+import CreatePage from "./pages/CreatePage";
 
 function Sidebar() {
   const navigate = useNavigate();
@@ -38,6 +40,12 @@ function Sidebar() {
         </NavLink>
         <NavLink to="/collect" className={linkClass}>
           ⚡ 一键采集
+        </NavLink>
+        <NavLink to="/distill" className={linkClass}>
+          🎨 风格蒸馏
+        </NavLink>
+        <NavLink to="/create" className={linkClass}>
+          ✨ 创作工坊
         </NavLink>
         <NavLink to="/library" className={linkClass}>
           📚 素材库
@@ -80,6 +88,8 @@ export default function App() {
           <Route path="/login" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/collect" element={<CollectPage />} />
+          <Route path="/distill" element={<DistillPage />} />
+          <Route path="/create" element={<CreatePage />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>

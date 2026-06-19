@@ -1,7 +1,10 @@
 /**
- * API 桥接层 — 统一封装 Tauri invoke，开发模式降级为 mock
+ * API 层 — 真实 API + mock 降级
+ *
+ * 真实 API: 248 服务器 FastAPI (:8893)
+ * 开发模式: 直连 248（跨域需服务器 CORS 支持）
+ * 部署模式: 同域（8889 前端 → 8893 API）
  */
-import { useAuthStore, useSettingsStore } from "../stores";
 
 // ── 类型 ──────────────────────────────────
 
@@ -34,129 +37,299 @@ export interface CollectResult {
   error?: string;
 }
 
-// ── Tauri invoke wrapper ───────────────────
+/** 对标账号 */
+export interface Account {
+  id: string;
+  name: string;
+  identifier: string;
+  track: string;
+  status: string;
+  shortName: string;
+  collectEnabled?: boolean;
+}
 
-const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+/** 微信搜索公众号结果 */
+export interface WxAccountSearchResult {
+  fakeid: string;
+  nickname: string;
+  signature: string;
+  service_type: number;
+}
 
-async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  if (isTauri) {
-    const { invoke: tauriInvoke } = await import("@tauri-apps/api/core");
-    return tauriInvoke<T>(cmd, args);
+// ── API Base ──────────────────────────────
+
+/** 开发模式直连 248，部署模式同域 */
+const API_BASE = typeof window !== "undefined" && window.location.hostname === "localhost"
+  ? "http://47.98.184.248:8893"
+  : "";
+
+async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
+  const sep = path.includes("?") ? "&" : "?";
+  const url = `${API_BASE}${path}${sep}_=${Date.now()}`;
+  const res = await fetch(url, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`API ${res.status}: ${text}`);
   }
-  // 开发模式 mock
-  return mockInvoke<T>(cmd, args);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || "API error");
+  return json.data as T;
 }
 
-// ── Mock 实现 ──────────────────────────────
+// ── 对标账号 API ─────────────────────────
 
-function delay(ms = 300) {
-  return new Promise((r) => setTimeout(r, ms));
+export async function apiGetAccounts(): Promise<Account[]> {
+  return fetchAPI<Account[]>("/api/accounts");
 }
 
-const mockAccounts = [
-  { id: "rec001", fields: { 公众号名称: "AI工具派", 账号标识: "fake_ai_tools", 赛道: "AI工具", 状态: "活跃" } },
-  { id: "rec002", fields: { 公众号名称: "副业有道", 账号标识: "fake_fuye", 赛道: "副业", 状态: "活跃" } },
-  { id: "rec003", fields: { 公众号名称: "网盘游戏网", 账号标识: "fake_wp", 赛道: "网盘", 状态: "活跃" } },
-];
-
-const mockArticles: FeishuRecord[] = [
-  { id: "art001", fields: { 文章标题: { link: "https://mp.weixin.qq.com/s/abc", text: "2026年AI工具大盘点" }, 公众号名称: "AI工具派", 发布时间: 1750291200000, 状态: "待选题", 赛道: "AI工具" } },
-  { id: "art002", fields: { 文章标题: { link: "https://mp.weixin.qq.com/s/def", text: "副业月入过万的三个方法" }, 公众号名称: "副业有道", 发布时间: 1750204800000, 状态: "待选题", 赛道: "副业" } },
-  { id: "art003", fields: { 文章标题: { link: "https://mp.weixin.qq.com/s/ghi", text: "网盘资源分享指南" }, 公众号名称: "网盘游戏网", 发布时间: 1750118400000, 状态: "写作中", 赛道: "网盘" } },
-  { id: "art004", fields: { 文章标题: { link: "https://mp.weixin.qq.com/s/jkl", text: "Claude Code 实战技巧" }, 公众号名称: "AI工具派", 发布时间: 1750032000000, 状态: "待选题", 赛道: "AI工具" } },
-  { id: "art005", fields: { 文章标题: { link: "https://mp.weixin.qq.com/s/mno", text: "如何用 Tauri 开发桌面应用" }, 公众号名称: "AI工具派", 发布时间: 1749945600000, 状态: "已发布", 赛道: "AI工具" } },
-];
-
-async function mockInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
-  await delay();
-
-  switch (cmd) {
-    case "login": {
-      const { username, password } = args as unknown as LoginRequest;
-      if (username && password) {
-        return {
-          access_token: "mock_token_" + Date.now(),
-          refresh_token: "mock_refresh",
-          expires_in: 7200,
-        } as T;
-      }
-      throw new Error("用户名或密码错误");
-    }
-
-    case "get_feishu_tables": {
-      return [
-        { name: "账号列表", table_id: "tbloLzUPoKoBOHti" },
-        { name: "文章列表", table_id: "tblQ9Jj095axnoQF" },
-        { name: "对标创作管理", table_id: "tblLkobfuLIPL9zb" },
-        { name: "原创创作管理", table_id: "tblsvjn3XfcCQvpw" },
-        { name: "发布计划", table_id: "tbl6hshjwvpkYrxa" },
-        { name: "我的公众号", table_id: "tbl4WFWGMf8SrF8a" },
-      ] as T;
-    }
-
-    case "get_feishu_records": {
-      const { table_id } = args as { table_id: string };
-      if (table_id === "tbloLzUPoKoBOHti") return mockAccounts as T;
-      if (table_id === "tblQ9Jj095axnoQF") return mockArticles as T;
-      return [] as T;
-    }
-
-    case "sync_all_accounts": {
-      await delay(1500);
-      return [
-        { success: true, account_name: "AI工具派", new_articles: 3, updated_articles: 1 },
-        { success: true, account_name: "副业有道", new_articles: 2, updated_articles: 0 },
-        { success: true, account_name: "网盘游戏网", new_articles: 5, updated_articles: 2 },
-      ] as T;
-    }
-
-    case "start_sidecar": {
-      return "Sidecar 已启动 (mock)" as T;
-    }
-
-    case "store_secret":
-    case "get_secret": {
-      return null as T;
-    }
-
-    default:
-      throw new Error(`Unknown command: ${cmd}`);
-  }
+export async function apiCreateAccount(account: {
+  name: string;
+  identifier: string;
+  track: string;
+  status: string;
+}): Promise<Account> {
+  return fetchAPI<Account>("/api/accounts", {
+    method: "POST",
+    body: JSON.stringify(account),
+  });
 }
 
-// ── 公开 API ───────────────────────────────
-
-export async function apiLogin(username: string, password: string): Promise<void> {
-  const token = await invoke<AuthToken>("login", { username, password });
-  useAuthStore.getState().login(username, token.access_token);
+export async function apiDeleteAccount(recordId: string): Promise<void> {
+  await fetchAPI<void>(`/api/accounts/${recordId}`, { method: "DELETE" });
 }
+
+export async function apiUpdateAccountStatus(
+  recordId: string,
+  status: string
+): Promise<void> {
+  await fetchAPI<void>(`/api/accounts/${recordId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function apiSearchAccounts(
+  query: string,
+  page = 1,
+  pageSize = 5
+): Promise<WxAccountSearchResult[]> {
+  return fetchAPI<WxAccountSearchResult[]>(
+    `/api/accounts/search?q=${encodeURIComponent(query)}&page=${page}&page_size=${pageSize}`
+  );
+}
+
+// ── 风格卡 API ───────────────────────────
+
+export interface StyleCard {
+  id: string;
+  name: string;
+  source: string;
+  featureCount: number;
+  features: string[];
+  status: string;
+}
+
+export async function apiGetStyles(): Promise<StyleCard[]> {
+  const data = await fetchAPI<{ styles: StyleCard[] }>("/api/styles");
+  return data.styles || [];
+}
+
+export async function apiDistill(accountName: string): Promise<{
+  style?: StyleCard;
+  message?: string;
+}> {
+  return fetchAPI("/api/styles/distill", {
+    method: "POST",
+    body: JSON.stringify({ account_name: accountName }),
+  });
+}
+
+// ── 素材库 API ───────────────────────────
+
+export async function apiGetLibrary(pageSize = 50): Promise<FeishuRecord[]> {
+  return fetchAPI<FeishuRecord[]>(`/api/library?page_size=${pageSize}`);
+}
+
+// ── AI 改写 ──────────────────────────────
+
+export interface RewriteResult {
+  rewritten: string;
+  style_used: string;
+}
+
+export async function apiRewrite(
+  text: string,
+  styleName = ""
+): Promise<RewriteResult> {
+  return fetchAPI<RewriteResult>("/api/rewrite", {
+    method: "POST",
+    body: JSON.stringify({ text, style_name: styleName }),
+  });
+}
+
+// ── 去 AI 扫描 ───────────────────────────
+
+export interface ScanScores {
+  ai_traces: number;
+  sentence_variety: number;
+  personal_voice: number;
+  repetition: number;
+  interaction: number;
+}
+
+export interface ScanResult {
+  scores: ScanScores;
+  verdict: string;
+  summary: string;
+  stats: {
+    char_count: number;
+    sentence_count: number;
+    avg_sentence_len: number;
+    word_count: number;
+  };
+  total_score: number;
+  max_score: number;
+}
+
+export async function apiScan(text: string): Promise<ScanResult> {
+  return fetchAPI<ScanResult>("/api/scan", {
+    method: "POST",
+    body: JSON.stringify({ text }),
+  });
+}
+
+// ── 保存 ─────────────────────────────────
+
+export async function apiSaveArticle(params: {
+  title: string;
+  content: string;
+  source?: string;
+  style?: string;
+  link?: string;
+  art_type?: string;
+}): Promise<void> {
+  await fetchAPI<void>("/api/library/save", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+// ── 发布 ─────────────────────────────────
+
+export async function apiPublish(params: {
+  title: string;
+  content: string;
+  account_name?: string;
+}): Promise<void> {
+  await fetchAPI<void>("/api/publish", {
+    method: "POST",
+    body: JSON.stringify({
+      title: params.title,
+      content: params.content,
+      account_name: params.account_name || "网盘游戏网",
+    }),
+  });
+}
+
+export interface SyncResult {
+  success: boolean;
+  account_name: string;
+  new_articles: number;
+  updated_articles: number;
+  filtered: number;
+  deduped: number;
+  error?: string;
+  note?: string;
+}
+
+// ── 采集 API ─────────────────────────────
+
+export async function apiSyncAll(
+  beginDate = "",
+  endDate = ""
+): Promise<SyncResult[]> {
+  const body: Record<string, string> = {};
+  if (beginDate) body.begin_date = beginDate;
+  if (endDate) body.end_date = endDate;
+  return fetchAPI<SyncResult[]>("/api/sync", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+// ── 设置 API ─────────────────────────────
 
 export async function apiGetTables(): Promise<FeishuTable[]> {
-  const { feishu } = useSettingsStore.getState();
-  return invoke<FeishuTable[]>("get_feishu_tables", {
-    appId: feishu.appId,
-    appSecret: feishu.appSecret,
-    baseToken: feishu.baseToken,
+  return fetchAPI<FeishuTable[]>("/api/tables");
+}
+
+// ── 配置管理 ─────────────────────────────
+
+export interface ServerConfig {
+  feishu: {
+    app_id: string;
+    app_secret: string;
+    base_token: string;
+  };
+  wechat: {
+    app_id: string;
+    app_secret: string;
+  };
+  accounts_table_id: string;
+  articles_table_id: string;
+}
+
+export async function apiGetConfig(): Promise<ServerConfig> {
+  return fetchAPI<ServerConfig>("/api/config");
+}
+
+export async function apiSaveConfig(
+  partial: Partial<ServerConfig>
+): Promise<void> {
+  await fetchAPI<void>("/api/config", {
+    method: "POST",
+    body: JSON.stringify(partial),
   });
 }
 
-export async function apiGetRecords(tableId: string, pageSize = 50): Promise<FeishuRecord[]> {
-  const { feishu } = useSettingsStore.getState();
-  return invoke<FeishuRecord[]>("get_feishu_records", {
-    appId: feishu.appId,
-    appSecret: feishu.appSecret,
-    baseToken: feishu.baseToken,
-    tableId,
-    pageSize,
-  });
+// ── 登录 ────────────────────────────────
+
+/** Mock 登录 — 待接入真实 Auth */
+export async function apiLogin(username: string, password: string): Promise<void> {
+  if (!username || !password) throw new Error("用户名和密码不能为空");
+  // 宽松模式（后续接真实 Auth）
+  const { useAuthStore } = await import("../stores");
+  useAuthStore.getState().login(username, "mock-token");
 }
 
-export async function apiSyncAll(): Promise<CollectResult[]> {
-  return invoke<CollectResult[]>("sync_all_accounts");
-}
+// ── Sidecar ──────────────────────────────
 
 export async function apiStartSidecar(): Promise<string> {
-  return invoke<string>("start_sidecar");
+  return fetchAPI<string>("/api/sidecar/start", { method: "POST" });
 }
 
-export { isTauri };
+// ── 存量兼容（供尚未迁移的页面使用）─────
+
+/** @deprecated 请使用 apiGetAccounts() */
+export async function apiGetRecords(_tableId: string, _pageSize = 50): Promise<FeishuRecord[]> {
+  const accounts = await apiGetAccounts();
+  type AccFields = Record<string, unknown>;
+  return (accounts as Account[]).map((a) => ({
+    id: a.id,
+    fields: {
+      公众号名称: a.name,
+      账号标识: a.identifier,
+      赛道: a.track,
+      状态: a.status,
+    } as AccFields,
+  }));
+}
+
+// ── Tauri 标记 ────────────────────────────
+
+export const isTauri =
+  typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
