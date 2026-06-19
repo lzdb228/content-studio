@@ -8,9 +8,8 @@ dist/
 src-tauri/target/
 src-tauri/icons/
 
-# Environment
-.env
-.env.local
+# Server config (contains secrets)
+server_config.json
 
 # IDE
 .vscode/
