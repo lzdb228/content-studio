@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.xingliu.content-studio",
   "build": {
-    "beforeDevCommand": "NODE_ENV=development npm run dev",
+    "beforeDevCommand": "cross-env NODE_ENV=development npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "NODE_ENV=development npm run build",
+    "beforeBuildCommand": "cross-env NODE_ENV=development npm run build",
     "frontendDist": "../dist"
   },
   "app": {
