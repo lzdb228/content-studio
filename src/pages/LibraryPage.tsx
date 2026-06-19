@@ -116,11 +116,11 @@ export default function LibraryPage() {
               >
                 <p className="font-medium text-gray-900 line-clamp-2">{getTitle(art.fields)}</p>
                 <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
-                  <span>{getField(art.fields, "公众号名称")}</span>
-                  <span className="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {statusColor(getField(art.fields, '状态'))}">
+                  <span>{String(getField(art.fields, "公众号名称"))}</span>
+                  <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(getField(art.fields, '状态'))}`}>
                     {String(getField(art.fields, "状态", "未知"))}
                   </span>
-                  {getField(art.fields, "发布时间") && (
+                  {Boolean(getField(art.fields, "发布时间")) && (
                     <span>{formatTime(getField(art.fields, "发布时间"))}</span>
                   )}
                 </div>
@@ -173,7 +173,7 @@ export default function LibraryPage() {
               </span>
             </div>
 
-            {getField(selected.fields, "发布时间") && (
+            {Boolean(getField(selected.fields, "发布时间")) && (
               <div>
                 <p className="mb-1 text-xs font-medium text-gray-500">发布时间</p>
                 <p className="text-sm text-gray-900">{formatTime(getField(selected.fields, "发布时间"))}</p>

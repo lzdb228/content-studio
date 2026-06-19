@@ -68,7 +68,7 @@ export default function CollectPage() {
       {/* Results */}
       {results.length > 0 && (
         <>
-          <div className="mb-4 grid grid-cols-3 gap-4">
+          <div className="mb-4 grid grid-cols-4 gap-4">
             <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
               <p className="text-2xl font-bold text-gray-900">{results.length}</p>
               <p className="text-xs text-gray-500">已处理账号</p>
@@ -80,6 +80,10 @@ export default function CollectPage() {
             <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
               <p className="text-2xl font-bold text-blue-600">{totalUpdated}</p>
               <p className="text-xs text-gray-500">更新文章</p>
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
+              <p className="text-2xl font-bold text-red-600">{failedCount}</p>
+              <p className="text-xs text-gray-500">失败</p>
             </div>
           </div>
 
