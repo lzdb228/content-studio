@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::process::{Command, Child};
 use std::sync::Mutex;
-use tauri::State;
 use tauri_plugin_store::StoreExt;
 
 #[allow(dead_code)]
