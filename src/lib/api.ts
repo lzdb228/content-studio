@@ -138,6 +138,17 @@ export async function apiGetStyles(): Promise<StyleCard[]> {
   return data.styles || [];
 }
 
+export async function apiAddStyle(params: {
+  name: string;
+  source: string;
+  features: string[];
+}): Promise<void> {
+  await fetchAPI("/api/styles", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
 export async function apiDistill(
   accountName: string,
   articleTexts?: string[],

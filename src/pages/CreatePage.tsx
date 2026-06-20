@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
   apiGetStyles,
+  apiGetAccounts,
   apiRewrite,
   apiScan,
   apiSaveArticle,
   apiPublish,
   StyleCard,
+  Account,
   RewriteResult,
   ScanResult,
 } from "../lib/api";
@@ -18,9 +20,13 @@ export default function CreatePage() {
   const [content, setContent] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("");
   const [artType, setArtType] = useState("原创创作"); // 对标创作 | 原创创作
+  const [benchmarkAccount, setBenchmarkAccount] = useState(""); // XIN-108: 对标账号关联
 
   // 风格列表
   const [styles, setStyles] = useState<StyleCard[]>([]);
+
+  // 对标账号列表
+  const [accounts, setAccounts] = useState<Account[]>([]);
 
   // 改写
   const [rewriting, setRewriting] = useState(false);
@@ -40,10 +46,11 @@ export default function CreatePage() {
   // 标签页
   const [tab, setTab] = useState<Tab>("write");
 
-  // ── 加载风格 ──────────────────────────
+  // ── 加载风格 + 对标账号 ──────────────
 
   useEffect(() => {
     apiGetStyles().then(setStyles).catch(() => {});
+    apiGetAccounts().then(setAccounts).catch(() => {});
   }, []);
 
   // ── AI 改写 ────────────────────────────
@@ -100,7 +107,7 @@ export default function CreatePage() {
         content: content.trim(),
         style: selectedStyle,
         art_type: artType,
-        source: artType,
+        source: artType === "对标创作" && benchmarkAccount ? `对标:${benchmarkAccount}` : artType,
       });
       setActionMsg("✅ 已保存到素材库");
     } catch (err) {
@@ -158,30 +165,76 @@ export default function CreatePage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* 左侧：编辑区 */}
         <div className="lg:col-span-2 space-y-4">
-          {/* 模式 + 风格选择 */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex rounded-lg border border-gray-300 bg-white p-0.5">
-              {["原创创作", "对标创作"].map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setArtType(t)}
-                  className={`rounded-md px-4 py-1.5 text-sm font-medium transition ${
-                    artType === t
-                      ? "bg-blue-600 text-white"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
+          {/* 文章类型选择器 —— XIN-107: 卡片式 */}
+          <div className="flex flex-wrap items-start gap-4">
+            <div className="flex gap-3">
+              {/* 原创创作 */}
+              <button
+                onClick={() => { setArtType("原创创作"); setBenchmarkAccount(""); }}
+                className={`rounded-xl border-2 p-4 text-left w-44 transition-all ${
+                  artType === "原创创作"
+                    ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                <div className="text-2xl mb-1">✍️</div>
+                <p className="text-sm font-semibold text-gray-900">原创创作</p>
+                <p className="text-xs text-gray-400 mt-1">独立创作新文章，可选择风格模板辅助</p>
+              </button>
+
+              {/* 对标创作 */}
+              <button
+                onClick={() => setArtType("对标创作")}
+                className={`rounded-xl border-2 p-4 text-left w-44 transition-all ${
+                  artType === "对标创作"
+                    ? "border-orange-500 bg-orange-50 ring-2 ring-orange-200"
+                    : "border-gray-200 bg-white hover:border-gray-300"
+                }`}
+              >
+                <div className="text-2xl mb-1">🎯</div>
+                <p className="text-sm font-semibold text-gray-900">对标创作</p>
+                <p className="text-xs text-gray-400 mt-1">参考对标账号风格进行仿写创作</p>
+              </button>
             </div>
 
+            {/* XIN-108: 对标账号关联选择器 */}
+            {artType === "对标创作" && (
+              <div className="flex-1 min-w-[200px]">
+                <label className="block text-xs font-medium text-gray-500 mb-1">
+                  对标账号
+                </label>
+                <select
+                  value={benchmarkAccount}
+                  onChange={(e) => setBenchmarkAccount(e.target.value)}
+                  className="w-full rounded-lg border border-orange-300 bg-white px-3 py-2 text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none transition"
+                >
+                  <option value="">选择对标账号...</option>
+                  {accounts
+                    .filter((a) => a.status === "活跃")
+                    .map((a) => (
+                      <option key={a.id} value={a.name}>
+                        {a.name} {a.shortName ? `(${a.shortName})` : ""}
+                      </option>
+                    ))}
+                </select>
+                {benchmarkAccount && (
+                  <p className="mt-1 text-xs text-orange-500">
+                    🎯 将以「{benchmarkAccount}」的风格为对标参考进行创作
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 风格选择 */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-gray-500 whitespace-nowrap">风格模板：</label>
             <select
               value={selectedStyle}
               onChange={(e) => setSelectedStyle(e.target.value)}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none"
+              className="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none flex-1"
             >
-              <option value="">选择风格（可选）</option>
+              <option value="">不选择（自由创作）</option>
               {styles.map((s) => (
                 <option key={s.id} value={s.name}>
                   {s.name} ({s.featureCount} 特征)

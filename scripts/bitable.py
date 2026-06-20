@@ -8,11 +8,15 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import FEISHU_APP_ID as APP_ID, FEISHU_APP_SECRET as APP_SECRET, FEISHU_BASE_TOKEN as BASE_TOKEN
 
-# 表格 ID 也从 config 读取（回退硬编码）
-from config import _cfg
-TABLE_STYLES   = 'tbls8pfJaC8Wzc2r'     # 风格卡
-TABLE_ARTICLES = _cfg.get('articles_table_id') or 'tblQ9Jj095axnoQF'   # 文章列表
-TABLE_ACCOUNTS = _cfg.get('accounts_table_id') or 'tbloLzUPoKoBOHti'   # 对标账号
+# 表格 ID 从统一配置读取（回退硬编码）
+import sys as _sys, os as _os
+_scr = _os.path.dirname(_os.path.abspath(__file__))
+if _scr not in _sys.path:
+    _sys.path.insert(0, _scr)
+from config import _cfg, get_config
+TABLE_STYLES   = get_config('styles_table_id') or 'tbls8pfJaC8Wzc2r'     # 风格卡
+TABLE_ARTICLES = get_config('articles_table_id') or 'tblQ9Jj095axnoQF'   # 文章列表
+TABLE_ACCOUNTS = get_config('accounts_table_id') or 'tbloLzUPoKoBOHti'   # 对标账号
 
 # ─── Auth ──────────────────────────────────────
 _token_cache = {"token": "", "expires": 0}
@@ -41,7 +45,7 @@ def _get_token() -> str:
     return token
 
 
-def _api(method: str, path: str, body: dict | None = None) -> dict:
+def _api(method, path, body=None):
     """通用飞书 API 调用。"""
     token = _get_token()
     url = f"https://open.feishu.cn/open-apis/bitable/v1/apps/{BASE_TOKEN}{path}"
@@ -190,7 +194,7 @@ def get_accounts() -> list[dict]:
     return accounts
 
 
-def create_account(name: str, identifier: str, track: str, status: str = "活跃") -> dict | None:
+def create_account(name, identifier, track, status="活跃"):
     """创建对标账号。"""
     r = _api("POST", f"/tables/{TABLE_ACCOUNTS}/records", {
         "fields": {

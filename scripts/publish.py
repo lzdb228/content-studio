@@ -34,7 +34,7 @@ def _feishu_token() -> str:
     return _token_cache["token"]
 
 
-def _feishu_api(method: str, path: str, body: dict | None = None) -> dict:
+def _feishu_api(method, path, body=None):
     token = _feishu_token()
     url = f"https://open.feishu.cn/open-apis/bitable/v1/apps/{BASE_TOKEN}{path}"
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}

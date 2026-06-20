@@ -59,10 +59,29 @@ def api_get_styles():
     return {"ok": True, "data": {"styles": get_styles()}}
 
 
+class AddStyleRequest(BaseModel):
+    name: str
+    source: str = ""
+    features: List[str] = []
+
+
+@app.post("/api/styles")
+def api_add_style(req: AddStyleRequest):
+    """保存蒸馏后的风格卡到飞书多维表格。"""
+    if not req.name.strip():
+        raise HTTPException(400, "风格名称不能为空")
+    if not req.features:
+        raise HTTPException(400, "特征列表不能为空")
+    ok = add_style(req.name.strip(), req.source.strip(), req.features)
+    if ok:
+        return {"ok": True}
+    return {"ok": False, "error": "保存风格失败"}
+
+
 @app.post("/api/styles/distill")
 def api_distill(req: DistillRequest):
     """蒸馏风格（脚本统计 + AI 分析）。
-    支持两种模式：
+    支持三种模式：
     1. 传入 article_texts → 直接分析指定文章
     2. 传入 article_ids → 从素材库提取对应文章
     3. 仅 account_name → 从素材库按账号名过滤（旧模式）

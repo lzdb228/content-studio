@@ -434,9 +434,9 @@ def cmd_auth():
 # 5. 飞书同步
 # ═══════════════════════════════════════════════════════════════
 
-from config import FEISHU_BASE_TOKEN
-
-FEISHU_TABLE_ID = "tblQ9Jj095axnoQF"  # 文章列表
+# 配置导入移至文件顶部；此处仅获取变量引用
+FEISHU_BASE_TOKEN = get_config("feishu.base_token")
+FEISHU_TABLE_ID = get_config("articles_table_id") or "tblQ9Jj095axnoQF"  # 文章列表
 
 
 def _get_existing_urls():

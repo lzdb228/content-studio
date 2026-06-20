@@ -119,7 +119,7 @@ def _analyze_style(account: str, texts: list[str], stats: dict) -> list[str]:
 
 # ─── 主入口 ─────────────────────────────────────
 
-def run_distill(account_name: str, article_texts: list[str] | None = None, article_ids: list[str] | None = None) -> dict:
+def run_distill(account_name, article_texts=None, article_ids=None):
     """蒸馏管线：查文章 → 脚本统计 → AI 分析 → 返回结果。
 
     Args:
