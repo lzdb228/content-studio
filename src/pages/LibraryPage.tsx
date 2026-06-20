@@ -7,6 +7,7 @@ export default function LibraryPage() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<FeishuRecord | null>(null);
   const [search, setSearch] = useState("");
+  const [artTypeFilter, setArtTypeFilter] = useState<"全部" | "原创创作" | "对标创作">("全部");
 
   useEffect(() => {
     loadArticles();
@@ -52,7 +53,15 @@ export default function LibraryPage() {
     return "";
   };
 
+  const getArtType = (fields: Record<string, unknown>): string => {
+    return String(getField(fields, "文章类型", ""));
+  };
+
   const filtered = articles.filter((a) => {
+    // 按文章类型筛选（XIN-105）
+    if (artTypeFilter !== "全部") {
+      if (getArtType(a.fields) !== artTypeFilter) return false;
+    }
     if (!search) return true;
     const title = getTitle(a.fields).toLowerCase();
     const author = String(getField(a.fields, "公众号名称")).toLowerCase();
@@ -73,7 +82,10 @@ export default function LibraryPage() {
         <div className="mb-6 flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">素材库</h1>
-            <p className="mt-1 text-sm text-gray-500">{articles.length} 篇文章</p>
+            <p className="mt-1 text-sm text-gray-500">
+              {filtered.length}/{articles.length} 篇文章
+              {artTypeFilter !== "全部" && ` · ${artTypeFilter}`}
+            </p>
           </div>
           <div className="flex gap-3">
             <input
@@ -90,6 +102,23 @@ export default function LibraryPage() {
               🔄 刷新
             </button>
           </div>
+        </div>
+
+        {/* XIN-105: 文章类型筛选标签 */}
+        <div className="mb-4 flex gap-2">
+          {(["全部", "原创创作", "对标创作"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setArtTypeFilter(t)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                artTypeFilter === t
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+              }`}
+            >
+              {t === "全部" ? "📋 全部" : t === "原创创作" ? "✍️ 原创创作" : "🎯 对标创作"}
+            </button>
+          ))}
         </div>
 
         {error && (
@@ -116,6 +145,13 @@ export default function LibraryPage() {
               >
                 <p className="font-medium text-gray-900 line-clamp-2">{getTitle(art.fields)}</p>
                 <div className="mt-2 flex items-center gap-3 text-xs text-gray-500">
+                  {getArtType(art.fields) && (
+                    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                      getArtType(art.fields) === "对标创作" ? "bg-purple-50 text-purple-700" : "bg-blue-50 text-blue-700"
+                    }`}>
+                      {getArtType(art.fields) === "对标创作" ? "🎯" : "✍️"} {getArtType(art.fields)}
+                    </span>
+                  )}
                   <span>{String(getField(art.fields, "公众号名称"))}</span>
                   <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusColor(getField(art.fields, '状态'))}`}>
                     {String(getField(art.fields, "状态", "未知"))}
@@ -157,6 +193,13 @@ export default function LibraryPage() {
             <div>
               <p className="mb-1 text-xs font-medium text-gray-500">公众号</p>
               <p className="text-sm text-gray-900">{String(getField(selected.fields, "公众号名称"))}</p>
+            </div>
+
+            <div>
+              <p className="mb-1 text-xs font-medium text-gray-500">文章类型</p>
+              <p className="text-sm text-gray-900">
+                {getArtType(selected.fields) || "—"}
+              </p>
             </div>
 
             <div>
