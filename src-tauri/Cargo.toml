@@ -1,6 +1,6 @@
 [package]
 name = "content-studio"
-version = "0.1.0"
+version = "1.2.0"
 description = "内容工坊 — 公众号对标采集·蒸馏·二创·发布桌面工具"
 authors = ["星流"]
 edition = "2021"
