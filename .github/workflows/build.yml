@@ -37,8 +37,13 @@ jobs:
             target: linux
             bundles: deb,appimage
           - os: macos-latest
-            target: macos
+            target: macos-arm
             bundles: dmg
+            args: --target aarch64-apple-darwin
+          - os: macos-13
+            target: macos-intel
+            bundles: dmg
+            args: --target x86_64-apple-darwin
           - os: windows-latest
             target: windows
             bundles: msi
@@ -78,7 +83,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          args: --bundles ${{ matrix.bundles }}
+          args: --bundles ${{ matrix.bundles }} ${{ matrix.args }}
 
       - name: Upload (${{ matrix.target }})
         uses: actions/upload-artifact@v4
