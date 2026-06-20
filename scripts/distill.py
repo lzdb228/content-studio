@@ -119,8 +119,13 @@ def _analyze_style(account: str, texts: list[str], stats: dict) -> list[str]:
 
 # ─── 主入口 ─────────────────────────────────────
 
-def run_distill(account_name: str) -> dict:
+def run_distill(account_name: str, article_texts: list[str] | None = None, article_ids: list[str] | None = None) -> dict:
     """蒸馏管线：查文章 → 脚本统计 → AI 分析 → 返回结果。
+
+    Args:
+        account_name: 公众号名称
+        article_texts: 直接传入的文章内容列表（优先使用）
+        article_ids: 从素材库按 ID 筛选文章
 
     返回: {ok, data: {account, features, stats, article_count}}
     """
@@ -128,17 +133,27 @@ def run_distill(account_name: str) -> dict:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from bitable import get_articles, add_style, get_styles
 
-    # 1. 脚本：从素材库拉取该账号的文章
-    all_articles = get_articles()
-    texts = [a["content"] for a in all_articles
-             if a.get("source", "").find(account_name) >= 0 and a.get("content")]
-    if not texts:
-        # 宽松匹配：只要来源包含部分关键词
+    # 1. 获取文章内容
+    if article_texts:
+        # 模式 A：直接使用传入的文章文本
+        texts = [t for t in article_texts if t and len(t.strip()) > 20]
+    elif article_ids:
+        # 模式 B：按 ID 从素材库提取
+        all_articles = get_articles()
+        id_set = set(article_ids)
         texts = [a["content"] for a in all_articles
-                 if a.get("content") and len(a.get("content", "")) > 50]
+                 if a.get("id") in id_set and a.get("content")]
+    else:
+        # 模式 C：从素材库按账号名匹配（旧逻辑）
+        all_articles = get_articles()
+        texts = [a["content"] for a in all_articles
+                 if a.get("source", "").find(account_name) >= 0 and a.get("content")]
+        if not texts:
+            texts = [a["content"] for a in all_articles
+                     if a.get("content") and len(a.get("content", "")) > 50]
 
     if not texts:
-        return {"ok": False, "error": f"未找到「{account_name}」的文章数据"}
+        return {"ok": False, "error": f"未找到「{account_name}」的文章数据（共找到 {len(texts)} 篇有效内容）"}
 
     # 限制样本量
     texts = texts[:20]

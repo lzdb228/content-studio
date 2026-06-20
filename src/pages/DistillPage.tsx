@@ -1,47 +1,40 @@
 import { useEffect, useState, useCallback } from "react";
 import {
-  apiGetAccounts,
   apiGetStyles,
   apiDistill,
-  apiGetLibrary,
-  Account,
+  apiSearchAccounts,
+  apiFetchArticles,
   StyleCard,
-  FeishuRecord,
+  WxAccountSearchResult,
+  WxArticle,
 } from "../lib/api";
 
-// ── 组件 ──────────────────────────────────
-
 export default function DistillPage() {
-  // 账号列表
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-
   // 风格卡列表
   const [styles, setStyles] = useState<StyleCard[]>([]);
   const [loadingStyles, setLoadingStyles] = useState(true);
 
-  // 文章（素材库）
-  const [articles, setArticles] = useState<FeishuRecord[]>([]);
+  // 搜索
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<WxAccountSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+
+  // 选中的账号 + 文章
+  const [selectedAccount, setSelectedAccount] = useState<WxAccountSearchResult | null>(null);
+  const [articles, setArticles] = useState<WxArticle[]>([]);
   const [loadingArticles, setLoadingArticles] = useState(false);
-  const [selectedArticles, setSelectedArticles] = useState<Set<string>>(
-    new Set()
-  );
+  const [selectedArticles, setSelectedArticles] = useState<Set<number>>(new Set());
+
+  // 展开的文章
+  const [expandedArticle, setExpandedArticle] = useState<number | null>(null);
 
   // 蒸馏状态
   const [distilling, setDistilling] = useState(false);
   const [distillResult, setDistillResult] = useState<StyleCard | null>(null);
   const [error, setError] = useState("");
 
-  // ── 加载 ──────────────────────────────
-
-  const loadAccounts = useCallback(async () => {
-    try {
-      const data = await apiGetAccounts();
-      setAccounts(data);
-    } catch {
-      // ignore
-    }
-  }, []);
+  // ── 加载风格卡 ─────────────────────────
 
   const loadStyles = useCallback(async () => {
     try {
@@ -55,41 +48,65 @@ export default function DistillPage() {
   }, []);
 
   useEffect(() => {
-    loadAccounts();
     loadStyles();
-  }, [loadAccounts, loadStyles]);
+  }, [loadStyles]);
 
-  // ── 选择账号 → 加载其文章 ─────────────
+  // ── 搜索公众号 ────────────────────────
 
-  const handleSelectAccount = async (acc: Account) => {
-    setSelectedAccount(acc);
+  const doSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    setSearching(true);
+    try {
+      const results = await apiSearchAccounts(q.trim(), 1, 10);
+      setSearchResults(results);
+      setShowDropdown(true);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => doSearch(searchQuery), 400);
+    return () => clearTimeout(timer);
+  }, [searchQuery, doSearch]);
+
+  // ── 选择账号 → 拉取文章 ───────────────
+
+  const handleSelectAccount = async (item: WxAccountSearchResult) => {
+    setSelectedAccount(item);
+    setArticles([]);
     setSelectedArticles(new Set());
+    setExpandedArticle(null);
     setDistillResult(null);
     setError("");
+    setShowDropdown(false);
+    setSearchQuery(item.nickname);
 
     setLoadingArticles(true);
     try {
-      const all = await apiGetLibrary(200);
-      const filtered = all.filter(
-        (a) =>
-          (a.fields["公众号名称"] as string) === acc.name ||
-          (a.fields["source"] as string) === acc.name
-      );
-      setArticles(filtered);
+      const data = await apiFetchArticles(item.fakeid, 10);
+      setArticles(data);
     } catch {
+      setError("获取文章失败，请确认 wechat_crawl 已认证");
       setArticles([]);
     } finally {
       setLoadingArticles(false);
     }
   };
 
-  // ── 选择 / 取消文章 ───────────────────
+  // ── 多选文章 ──────────────────────────
 
-  const toggleArticle = (id: string) => {
+  const toggleArticle = (idx: number) => {
     setSelectedArticles((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
       return next;
     });
   };
@@ -98,23 +115,40 @@ export default function DistillPage() {
     if (selectedArticles.size === articles.length) {
       setSelectedArticles(new Set());
     } else {
-      setSelectedArticles(new Set(articles.map((a) => a.id)));
+      setSelectedArticles(new Set(articles.map((_, i) => i)));
     }
+  };
+
+  // ── 展开文章内容 ──────────────────────
+
+  const toggleExpand = (idx: number) => {
+    setExpandedArticle((prev) => (prev === idx ? null : idx));
   };
 
   // ── 蒸馏 ──────────────────────────────
 
   const handleDistill = async () => {
-    if (!selectedAccount) return;
+    if (!selectedAccount || selectedArticles.size === 0) return;
     setDistilling(true);
     setError("");
     setDistillResult(null);
+
     try {
-      const result = await apiDistill(selectedAccount.name);
+      const selectedTexts = Array.from(selectedArticles)
+        .sort((a, b) => a - b)
+        .map((idx) => articles[idx]?.digest || "")
+        .filter(Boolean);
+
+      const result = await apiDistill(
+        selectedAccount.nickname,
+        selectedTexts
+      );
       if (result.style) {
         setDistillResult(result.style);
-        // 刷新风格列表
+        // 刷新风格卡列表
         loadStyles();
+      } else {
+        setError(result.message || "蒸馏未返回结果");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "蒸馏失败");
@@ -123,153 +157,182 @@ export default function DistillPage() {
     }
   };
 
-  // ── 渲染辅助 ───────────────────────────
-
-  const getField = (fields: Record<string, unknown>, key: string, fallback = ""): string => {
-    const val = fields[key];
-    if (Array.isArray(val) && val.length > 0) return String(val[0]);
-    if (val === null || val === undefined) return fallback;
-    return String(val) !== "[object Object]" ? String(val) : fallback;
-  };
-
-  const selectedCount = selectedArticles.size;
+  // ── 渲染 ──────────────────────────────
 
   return (
     <div className="p-8">
-      {/* 页头 */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">风格蒸馏</h1>
         <p className="mt-1 text-sm text-gray-500">
-          选择对标账号和文章，AI 自动提炼写作风格
+          搜索公众号 → 拉取最新文章 → 选择蒸馏 → AI 提取写作风格
         </p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* 左侧：操作区 */}
+        {/* 左侧：蒸馏操作 */}
         <div className="lg:col-span-2 space-y-6">
-          {/* 步骤 1: 选账号 */}
+          {/* 搜索栏 */}
           <div className="rounded-xl border border-gray-200 bg-white p-6">
-            <h2 className="mb-1 text-sm font-semibold text-gray-700">
-              ① 选择对标账号
-            </h2>
-            <p className="mb-4 text-xs text-gray-400">
-              从已关注的公众号中选择一个进行蒸馏
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {accounts.map((acc) => (
-                <button
-                  key={acc.id}
-                  onClick={() => handleSelectAccount(acc)}
-                  className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                    selectedAccount?.id === acc.id
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  }`}
-                >
-                  {acc.name}
-                </button>
-              ))}
-              {accounts.length === 0 && (
-                <p className="text-sm text-gray-400">
-                  暂无对标账号，请先在「对标管理」中添加
-                </p>
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">搜索公众号</h2>
+            <div className="relative">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                placeholder="搜索微信公众号名称，如「AI」「产品」..."
+                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition"
+              />
+              {searching && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                  搜索中...
+                </span>
+              )}
+              {/* 搜索下拉 */}
+              {showDropdown && searchResults.length > 0 && (
+                <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                  {searchResults.map((item) => (
+                    <div
+                      key={item.fakeid}
+                      onClick={() => handleSelectAccount(item)}
+                      className="cursor-pointer px-4 py-3 hover:bg-blue-50 transition flex items-center justify-between"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">
+                          {item.nickname}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate mt-0.5">
+                          {item.signature || "暂无简介"}
+                        </p>
+                      </div>
+                      <span className="ml-3 shrink-0 text-xs text-blue-500">
+                        {selectedAccount?.fakeid === item.fakeid ? "✓ 已选" : "选择 →"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {showDropdown && searchQuery.trim() && !searching && searchResults.length === 0 && (
+                <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg px-4 py-4 text-sm text-gray-400 text-center">
+                  未找到匹配的公众号
+                </div>
               )}
             </div>
           </div>
 
-          {/* 步骤 2: 选文章 */}
+          {/* 文章列表 */}
           {selectedAccount && (
-            <div className="rounded-xl border border-gray-200 bg-white p-6">
-              <div className="mb-4 flex items-center justify-between">
+            <div className="rounded-xl border border-gray-200 bg-white">
+              <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
                 <div>
-                  <h2 className="text-sm font-semibold text-gray-700">
-                    ② 选择文章
-                  </h2>
-                  <p className="text-xs text-gray-400">
-                    {selectedAccount.name} · {articles.length} 篇文章
-                    {selectedCount > 0 && ` · 已选 ${selectedCount} 篇`}
+                  <h3 className="font-semibold text-gray-900">{selectedAccount.nickname}</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {articles.length > 0
+                      ? `最近 ${articles.length} 篇文章（已选 ${selectedArticles.size} 篇）`
+                      : loadingArticles
+                      ? "加载中..."
+                      : "暂无文章"}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                {articles.length > 0 && (
                   <button
                     onClick={toggleAll}
                     className="text-xs text-blue-600 hover:text-blue-800"
                   >
-                    {selectedCount === articles.length ? "取消全选" : "全选"}
+                    {selectedArticles.size === articles.length ? "取消全选" : "全选"}
                   </button>
-                </div>
+                )}
               </div>
 
               {loadingArticles ? (
-                <p className="text-sm text-gray-400 py-4">加载文章中...</p>
+                <div className="flex items-center justify-center py-12 text-sm text-gray-400">
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+                  正在拉取文章...
+                </div>
               ) : articles.length === 0 ? (
-                <p className="text-sm text-gray-400 py-4">
-                  该账号暂无采集文章，请先在「一键采集」中同步
-                </p>
+                <div className="py-12 text-center text-sm text-gray-400">
+                  该账号暂无文章数据
+                </div>
               ) : (
-                <div className="max-h-80 space-y-1 overflow-y-auto">
-                  {articles.map((art) => (
-                    <label
-                      key={art.id}
-                      className="flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 cursor-pointer transition"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedArticles.has(art.id)}
-                        onChange={() => toggleArticle(art.id)}
-                        className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm text-gray-900 truncate">
-                          {getField(art.fields, "文章标题", getField(art.fields, "title", "(无标题)"))}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {getField(art.fields, "source", "") || getField(art.fields, "公众号名称", "")}
-                        </p>
+                <div className="divide-y divide-gray-100">
+                  {articles.map((art, idx) => {
+                    const isSelected = selectedArticles.has(idx);
+                    const isExpanded = expandedArticle === idx;
+                    return (
+                      <div key={idx}>
+                        <div
+                          className={`flex items-start gap-3 px-6 py-4 cursor-pointer transition ${
+                            isSelected ? "bg-blue-50" : "hover:bg-gray-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleArticle(idx)}
+                            className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div
+                            className="flex-1 min-w-0"
+                            onClick={() => toggleExpand(idx)}
+                          >
+                            <p className="text-sm font-medium text-gray-900 line-clamp-2">
+                              {art.title}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {art.create_time?.slice(0, 10) || "未知日期"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpand(idx);
+                            }}
+                            className="shrink-0 text-xs text-gray-400 hover:text-blue-600 transition mt-1"
+                          >
+                            {isExpanded ? "收起 ▲" : "展开 ▼"}
+                          </button>
+                        </div>
+                        {/* 展开内容 */}
+                        {isExpanded && (
+                          <div className="px-14 pb-4">
+                            <div className="rounded-lg bg-gray-50 p-4 text-sm text-gray-700 leading-relaxed max-h-60 overflow-y-auto whitespace-pre-wrap">
+                              {art.digest || "(无摘要内容)"}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </label>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
               {/* 蒸馏按钮 */}
-              <div className="mt-6 border-t border-gray-100 pt-4">
-                <button
-                  onClick={handleDistill}
-                  disabled={distilling || !selectedAccount}
-                  className="rounded-lg bg-purple-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-50 transition"
-                >
-                  {distilling ? "蒸馏中..." : "🎨 开始蒸馏"}
-                </button>
-              </div>
+              {articles.length > 0 && (
+                <div className="border-t border-gray-100 px-6 py-4">
+                  <button
+                    onClick={handleDistill}
+                    disabled={selectedArticles.size === 0 || distilling}
+                    className="w-full rounded-lg bg-purple-600 py-3 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-50 transition flex items-center justify-center gap-2"
+                  >
+                    {distilling ? (
+                      <>
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                        正在 AI 分析风格...
+                      </>
+                    ) : (
+                      `🔬 蒸馏已选的 ${selectedArticles.size} 篇文章`
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
-          {/* 蒸馏结果 */}
-          {distillResult && (
-            <div className="rounded-xl border border-purple-200 bg-purple-50 p-6">
-              <h2 className="mb-3 text-sm font-semibold text-purple-900">
-                ✅ 蒸馏完成
-              </h2>
-              <div className="rounded-lg bg-white p-4">
-                <p className="text-lg font-bold text-gray-900">
-                  {distillResult.name}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  来源：{distillResult.source} · {distillResult.featureCount} 个特征
-                </p>
-                <ul className="mt-3 space-y-1">
-                  {distillResult.features.map((f, i) => (
-                    <li
-                      key={i}
-                      className="flex items-start gap-2 text-sm text-gray-700"
-                    >
-                      <span className="text-purple-500 mt-0.5">•</span>
-                      {f}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+          {!selectedAccount && (
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 py-20 text-center">
+              <div className="mx-auto mb-3 text-4xl">🔍</div>
+              <p className="text-gray-500">搜索公众号开始蒸馏</p>
             </div>
           )}
 
@@ -279,51 +342,70 @@ export default function DistillPage() {
               {error}
             </div>
           )}
+
+          {/* 蒸馏结果 */}
+          {distillResult && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50 p-6">
+              <h3 className="mb-4 text-lg font-semibold text-purple-900">
+                ✅ {distillResult.name} 风格特征
+              </h3>
+              <div className="space-y-2">
+                {distillResult.features?.map((f, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-2 rounded-lg bg-white px-4 py-2.5 shadow-sm"
+                  >
+                    <span className="mt-0.5 text-sm text-purple-500">•</span>
+                    <span className="text-sm text-gray-700">{f}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* 右侧：已有风格卡 */}
         <div className="space-y-4">
-          <div className="rounded-xl border border-gray-200 bg-white p-5">
-            <h3 className="mb-3 text-sm font-semibold text-gray-700">
-              已蒸馏风格 ({styles.length})
+          <div className="rounded-xl border border-gray-200 bg-white p-6">
+            <h3 className="mb-4 text-lg font-semibold text-gray-900">
+              已有风格卡
             </h3>
             {loadingStyles ? (
               <p className="text-sm text-gray-400">加载中...</p>
             ) : styles.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">
-                暂无风格卡，选择账号开始蒸馏
-              </p>
+              <p className="text-sm text-gray-400">暂无风格卡</p>
             ) : (
               <div className="space-y-3">
                 {styles.map((s) => (
                   <div
                     key={s.id}
-                    className="rounded-lg border border-gray-100 p-3"
+                    className="rounded-lg border border-gray-100 bg-gray-50 px-4 py-3"
                   >
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-gray-900">
-                        {s.name}
-                      </p>
+                      <p className="font-medium text-sm text-gray-900">{s.name}</p>
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full ${
                           s.status === "ready"
-                            ? "bg-green-50 text-green-600"
-                            : "bg-yellow-50 text-yellow-600"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-amber-100 text-amber-700"
                         }`}
                       >
-                        {s.status === "ready" ? "可用" : s.status}
+                        {s.status === "ready" ? "就绪" : "蒸馏中"}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {s.source} · {s.featureCount} 特征
+                    <p className="text-xs text-gray-400 mt-1">
+                      {s.featureCount} 特征 · {s.source}
                     </p>
-                    <ul className="mt-2 space-y-0.5">
-                      {s.features.slice(0, 3).map((f, i) => (
-                        <li key={i} className="text-xs text-gray-500">
-                          · {f}
-                        </li>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {s.features?.slice(0, 3).map((f, i) => (
+                        <span
+                          key={i}
+                          className="rounded bg-white px-2 py-0.5 text-xs text-gray-500 shadow-sm"
+                        >
+                          {f}
+                        </span>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 ))}
               </div>

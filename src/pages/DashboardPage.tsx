@@ -21,6 +21,8 @@ export default function DashboardPage() {
   const [searchResults, setSearchResults] = useState<WxAccountSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [searchPage, setSearchPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   // 删除确认
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
@@ -35,10 +37,10 @@ export default function DashboardPage() {
     setError("");
     try {
       const data = await apiGetAccounts();
-      // 本地维护采集开关状态（默认开启）
+      // 从服务端状态派生 collectEnabled
       const withToggle = data.map((a) => ({
         ...a,
-        collectEnabled: a.collectEnabled ?? true,
+        collectEnabled: a.status === "活跃",
       }));
       setAccounts(withToggle);
     } catch (err) {
@@ -54,27 +56,35 @@ export default function DashboardPage() {
 
   // ── 搜索公众号 ────────────────────────
 
-  const doSearch = useCallback(async (q: string) => {
+  const doSearch = useCallback(async (q: string, page = 1) => {
     if (!q.trim()) {
       setSearchResults([]);
       setShowDropdown(false);
+      setSearchPage(1);
+      setHasMore(false);
       return;
     }
     setSearching(true);
     try {
-      const results = await apiSearchAccounts(q.trim());
-      setSearchResults(results);
+      const results = await apiSearchAccounts(q.trim(), page);
+      if (page === 1) {
+        setSearchResults(results);
+      } else {
+        setSearchResults((prev) => [...prev, ...results]);
+      }
+      setSearchPage(page);
+      setHasMore(results.length === 5); // 微信接口每页5条，满5条表示可能还有更多
       setShowDropdown(true);
     } catch {
-      setSearchResults([]);
+      if (page === 1) setSearchResults([]);
     } finally {
       setSearching(false);
     }
   }, []);
 
-  // 防抖搜索
+  // 防抖搜索（搜索词变化时从第1页开始）
   useEffect(() => {
-    const timer = setTimeout(() => doSearch(searchQuery), 400);
+    const timer = setTimeout(() => doSearch(searchQuery, 1), 400);
     return () => clearTimeout(timer);
   }, [searchQuery, doSearch]);
 
@@ -200,6 +210,16 @@ export default function DashboardPage() {
                 </button>
               </div>
             ))}
+            {/* 分页：加载更多 */}
+            {hasMore && (
+              <button
+                onClick={() => doSearch(searchQuery, searchPage + 1)}
+                disabled={searching}
+                className="w-full px-4 py-2.5 text-sm text-blue-600 hover:bg-blue-50 transition border-t border-gray-100 flex items-center justify-center gap-1"
+              >
+                {searching ? "加载中..." : `加载更多（第 ${searchPage + 1} 页）`}
+              </button>
+            )}
           </div>
         )}
         {showDropdown && searchQuery.trim() && !searching && searchResults.length === 0 && (

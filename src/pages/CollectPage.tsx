@@ -46,6 +46,8 @@ export default function CollectPage() {
   const totalNew = results.reduce((sum, r) => sum + (r.new_articles || 0), 0);
   const totalFiltered = results.reduce((sum, r) => sum + (r.filtered || 0), 0);
   const totalDeduped = results.reduce((sum, r) => sum + (r.deduped || 0), 0);
+  const totalSkipped = results.filter((r) => r.note?.includes("跳过")).length;
+  const totalFailed = results.filter((r) => !r.success).length;
 
   const activeCount = accounts.filter((a) => a.collectEnabled).length;
   const pausedCount = accounts.filter((a) => !a.collectEnabled).length;
@@ -144,7 +146,7 @@ export default function CollectPage() {
           {/* 结果汇总 */}
           {results.length > 0 && (
             <>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-3">
                 <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
                   <p className="text-2xl font-bold text-gray-900">
                     {results.length}
@@ -168,6 +170,18 @@ export default function CollectPage() {
                     {totalFiltered}
                   </p>
                   <p className="text-xs text-gray-500">日期过滤</p>
+                </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-4 text-center">
+                  <p className="text-2xl font-bold text-gray-400">
+                    {totalSkipped}
+                  </p>
+                  <p className="text-xs text-gray-500">已跳过</p>
+                </div>
+                <div className={`rounded-xl border p-4 text-center ${totalFailed > 0 ? "border-red-200 bg-red-50" : "border-gray-200 bg-white"}`}>
+                  <p className={`text-2xl font-bold ${totalFailed > 0 ? "text-red-600" : "text-gray-400"}`}>
+                    {totalFailed}
+                  </p>
+                  <p className="text-xs text-gray-500">失败</p>
                 </div>
               </div>
 

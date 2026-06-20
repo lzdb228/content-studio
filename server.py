@@ -8,7 +8,7 @@ import subprocess
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 
 from scripts.bitable import get_styles, get_articles, save_article, add_style, get_accounts, create_account, delete_account, get_tables, update_account_status
 from scripts.rewrite import ai_rewrite
@@ -48,6 +48,8 @@ class PublishRequest(BaseModel):
 
 class DistillRequest(BaseModel):
     account_name: str
+    article_texts: Optional[List[str]] = None
+    article_ids: Optional[List[str]] = None
 
 
 # ─── 风格卡 ─────────────────────────────────────
@@ -59,12 +61,21 @@ def api_get_styles():
 
 @app.post("/api/styles/distill")
 def api_distill(req: DistillRequest):
-    """蒸馏新风格（脚本爬取 + AI 分析）。"""
+    """蒸馏风格（脚本统计 + AI 分析）。
+    支持两种模式：
+    1. 传入 article_texts → 直接分析指定文章
+    2. 传入 article_ids → 从素材库提取对应文章
+    3. 仅 account_name → 从素材库按账号名过滤（旧模式）
+    """
     if not req.account_name.strip():
         raise HTTPException(400, "账号名不能为空")
     try:
         from scripts.distill import run_distill
-        result = run_distill(req.account_name.strip())
+        result = run_distill(
+            req.account_name.strip(),
+            article_texts=req.article_texts,
+            article_ids=req.article_ids
+        )
         if result.get("ok"):
             return {"ok": True, "data": result["data"]}
         else:
@@ -82,7 +93,7 @@ def api_get_library():
 
 @app.post("/api/library/save")
 def api_save(req: SaveRequest):
-    ok = save_article(req.title, req.content, req.source, req.style, link=req.link)
+    ok = save_article(req.title, req.content, req.source, req.style, link=req.link, art_type=req.art_type)
     return {"ok": ok}
 
 
@@ -184,6 +195,21 @@ def api_update_account(record_id: str, req: UpdateAccountRequest):
     if ok:
         return {"ok": True}
     raise HTTPException(500, "更新失败")
+
+
+# ─── 文章拉取（蒸馏用）─────────────────────────
+
+@app.get("/api/articles/fetch")
+def api_fetch_articles(fakeid: str = "", count: int = 10):
+    """通过 wechat_crawl 获取指定公众号最新文章（预览用）。"""
+    if not fakeid.strip():
+        raise HTTPException(400, "fakeid 不能为空")
+    try:
+        from scripts.wechat_crawl import get_articles
+        articles = get_articles(fakeid.strip(), count=count)
+        return {"ok": True, "data": articles}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
 
 
 # ─── 表格列表 ──────────────────────────────────

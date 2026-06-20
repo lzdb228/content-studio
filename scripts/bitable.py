@@ -141,7 +141,7 @@ def get_articles() -> list[dict]:
     return articles
 
 
-def save_article(title: str, content: str, source: str, style: str = "", link: str = "") -> bool:
+def save_article(title: str, content: str, source: str, style: str = "", link: str = "", art_type: str = "") -> bool:
     """保存文章到素材库。"""
     # 飞书「文章标题」是 URL/Link 字段，需传 Link 对象
     title_field = {"text": title[:100] if title else "(无标题)", "link": link or ""}
@@ -156,6 +156,8 @@ def save_article(title: str, content: str, source: str, style: str = "", link: s
         fields["发布链接"] = link
     if style:
         fields["关联风格"] = style
+    if art_type:
+        fields["文章类型"] = art_type
 
     r = _api("POST", f"/tables/{TABLE_ARTICLES}/records", {"fields": fields})
     return "record" in (r.get("data", {}) or {})
@@ -191,8 +193,8 @@ def get_accounts() -> list[dict]:
 def create_account(name: str, identifier: str, track: str, status: str = "活跃") -> dict | None:
     """创建对标账号。"""
     r = _api("POST", f"/tables/{TABLE_ACCOUNTS}/records", {
-
-        "fields": {"采集状态": "活跃", 
+        "fields": {
+            "采集状态": status,
             "账号名称": name,
             "账号标识": identifier,
             "账号类型": track,
@@ -239,9 +241,8 @@ if __name__ == "__main__":
         print(f"  {a['title'][:40]} | {a['source']}")
 
 def update_account_status(record_id: str, status: str) -> bool:
-    """更新对标账号状态（采集开关）。"""
+    """更新对标账号状态（采集开关）。status: '活跃'|'停更'"""
     r = _api("PUT", f"/tables/{TABLE_ACCOUNTS}/records/{record_id}", body={
-
-        "fields": {"采集状态": "活跃", "采集状态": status}
+        "fields": {"采集状态": status}
     })
     return r.get("code") == 0

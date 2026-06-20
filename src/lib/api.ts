@@ -138,14 +138,39 @@ export async function apiGetStyles(): Promise<StyleCard[]> {
   return data.styles || [];
 }
 
-export async function apiDistill(accountName: string): Promise<{
+export async function apiDistill(
+  accountName: string,
+  articleTexts?: string[],
+  articleIds?: string[]
+): Promise<{
   style?: StyleCard;
   message?: string;
 }> {
+  const body: Record<string, unknown> = { account_name: accountName };
+  if (articleTexts?.length) body.article_texts = articleTexts;
+  if (articleIds?.length) body.article_ids = articleIds;
   return fetchAPI("/api/styles/distill", {
     method: "POST",
-    body: JSON.stringify({ account_name: accountName }),
+    body: JSON.stringify(body),
   });
+}
+
+// ── 文章拉取（蒸馏用）────────────────────
+
+export interface WxArticle {
+  create_time: string;
+  title: string;
+  link: string;
+  digest: string;
+}
+
+export async function apiFetchArticles(
+  fakeid: string,
+  count = 10
+): Promise<WxArticle[]> {
+  return fetchAPI<WxArticle[]>(
+    `/api/articles/fetch?fakeid=${encodeURIComponent(fakeid)}&count=${count}`
+  );
 }
 
 // ── 素材库 API ───────────────────────────
@@ -278,6 +303,11 @@ export interface ServerConfig {
   wechat: {
     app_id: string;
     app_secret: string;
+    cookie: string;
+    token: string;
+  };
+  dashscope: {
+    api_key: string;
   };
   accounts_table_id: string;
   articles_table_id: string;

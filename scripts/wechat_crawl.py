@@ -34,25 +34,13 @@ USER_AGENTS = [
     'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 Chrome/77.0.3865.75 Mobile Safari/537.36',
 ]
 
-# ── 配置路径 ──────────────────────────────────────────────────
-SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
-CONFIG_FILE = os.path.join(SKILL_DIR, "wechat_config.json")
-
-
-def load_config():
-    """加载 token + cookie 配置"""
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as f:
-            return json.load(f)
-    return {}
-
-
-def save_config(token, cookie):
-    """保存 token + cookie 配置"""
-    os.makedirs(os.path.dirname(CONFIG_FILE), exist_ok=True)
-    with open(CONFIG_FILE, 'w') as f:
-        json.dump({"token": token, "cookie": cookie, "updated": datetime.now().isoformat()}, f, indent=2)
-    os.chmod(CONFIG_FILE, 0o600)
+# ── 配置路径：统一使用 server_config.json（通过 scripts/config.py）──
+# 旧 wechat_config.json 将被忽略；cookie/token 请通过设置页或统一配置管理
+import os as _os
+_scr = _os.path.dirname(_os.path.abspath(__file__))
+if _scr not in sys.path:
+    sys.path.insert(0, _scr)
+from config import get_config, set_config, reload_config
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -67,11 +55,10 @@ def search_accounts(query: str, count: int = 5, begin: int = 0):
 
     返回: [{"fakeid": "...", "nickname": "...", "signature": "..."}, ...]
     """
-    config = load_config()
-    token = config.get("token")
-    cookie = config.get("cookie")
+    token = get_config("wechat.token")
+    cookie = get_config("wechat.cookie")
     if not token or not cookie:
-        print("❌ 未配置 token/cookie，先运行: python3 wechat_crawl.py auth")
+        print("❌ 未配置 token/cookie，请在设置页配置微信凭证，或运行: python3 wechat_crawl.py auth")
         return []
 
     page_size = 10
@@ -131,11 +118,10 @@ def get_articles(fakeid: str, count: int = 30):
 
     返回: [{"create_time": "...", "title": "...", "link": "...", "digest": "..."}, ...]
     """
-    config = load_config()
-    token = config.get("token")
-    cookie = config.get("cookie")
+    token = get_config("wechat.token")
+    cookie = get_config("wechat.cookie")
     if not token or not cookie:
-        print("❌ 未配置 token/cookie，先运行: python3 wechat_crawl.py auth")
+        print("❌ 未配置 token/cookie，请在设置页配置微信凭证，或运行: python3 wechat_crawl.py auth")
         return []
 
     page_size = 20
@@ -430,16 +416,17 @@ def extract_auth_from_chrome():
 
     except Exception as e:
         print(f"❌ 提取失败: {e}")
-        print("   可手动配置: 编辑 wechat_config.json")
+        print("   可手动配置: 在设置页填写微信凭证，或编辑 server_config.json")
         return None
 
 
 def cmd_auth():
-    """auth 子命令：提取并保存 token/cookie"""
+    """auth 子命令：提取并保存 token/cookie 到统一配置"""
     auth = extract_auth_from_chrome()
     if auth:
-        save_config(auth["token"], auth["cookie"])
-        print(f"✅ 已保存到: {CONFIG_FILE}")
+        set_config("wechat.token", auth["token"])
+        set_config("wechat.cookie", auth["cookie"])
+        print("✅ 已保存到: server_config.json [wechat.token, wechat.cookie]")
         print(f"   token: {auth['token'][:20]}..." if len(auth['token']) > 20 else f"   token: {auth['token']}")
 
 
@@ -447,8 +434,6 @@ def cmd_auth():
 # 5. 飞书同步
 # ═══════════════════════════════════════════════════════════════
 
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from config import FEISHU_BASE_TOKEN
 
 FEISHU_TABLE_ID = "tblQ9Jj095axnoQF"  # 文章列表

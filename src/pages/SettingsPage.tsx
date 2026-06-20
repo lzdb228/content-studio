@@ -5,7 +5,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [feishu, setFeishu] = useState({ app_id: "", app_secret: "", base_token: "" });
-  const [wechat, setWechat] = useState({ app_id: "", app_secret: "" });
+  const [wechat, setWechat] = useState({ app_id: "", app_secret: "", cookie: "", token: "" });
+  const [dashscope, setDashscope] = useState({ api_key: "" });
   const [accountsTable, setAccountsTable] = useState("");
   const [articlesTable, setArticlesTable] = useState("");
   const [status, setStatus] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -20,16 +21,21 @@ export default function SettingsPage() {
       try {
         const cfg = await apiGetConfig();
         setFeishu({
-          app_id: cfg.feishu.app_id,
-          app_secret: cfg.feishu.app_secret,
-          base_token: cfg.feishu.base_token,
+          app_id: cfg.feishu?.app_id ?? "",
+          app_secret: cfg.feishu?.app_secret ?? "",
+          base_token: cfg.feishu?.base_token ?? "",
         });
         setWechat({
-          app_id: cfg.wechat.app_id,
-          app_secret: cfg.wechat.app_secret,
+          app_id: cfg.wechat?.app_id ?? "",
+          app_secret: cfg.wechat?.app_secret ?? "",
+          cookie: cfg.wechat?.cookie ?? "",
+          token: cfg.wechat?.token ?? "",
         });
-        setAccountsTable(cfg.accounts_table_id);
-        setArticlesTable(cfg.articles_table_id);
+        setDashscope({
+          api_key: cfg.dashscope?.api_key ?? "",
+        });
+        setAccountsTable(cfg.accounts_table_id ?? "");
+        setArticlesTable(cfg.articles_table_id ?? "");
       } catch (e) {
         setStatus({ ok: false, msg: "加载配置失败: " + (e instanceof Error ? e.message : String(e)) });
       } finally {
@@ -51,6 +57,11 @@ export default function SettingsPage() {
         wechat: {
           app_id: wechat.app_id,
           app_secret: wechat.app_secret,
+          cookie: wechat.cookie,
+          token: wechat.token,
+        },
+        dashscope: {
+          api_key: dashscope.api_key,
         },
         accounts_table_id: accountsTable,
         articles_table_id: articlesTable,
@@ -89,7 +100,7 @@ export default function SettingsPage() {
     <div className="p-8 max-w-2xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">设置</h1>
-        <p className="mt-1 text-sm text-gray-500">配置飞书连接和内容工厂</p>
+        <p className="mt-1 text-sm text-gray-500">配置飞书、微信、AI 密钥和内容工厂</p>
       </div>
 
       {/* 状态提示 */}
@@ -165,6 +176,7 @@ export default function SettingsPage() {
         {/* 微信公众号配置 */}
         <div className="rounded-xl border border-gray-200 bg-white p-6">
           <h2 className="mb-4 text-lg font-semibold text-gray-900">微信公众号配置</h2>
+          <p className="mb-4 text-xs text-gray-400">用于 wechat_crawl 采集文章，Cookie 和 Token 可从浏览器开发者工具中提取。</p>
           <div className="space-y-4">
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">App ID</label>
@@ -184,6 +196,44 @@ export default function SettingsPage() {
                 onChange={(e) => setWechat({ ...wechat, app_secret: e.target.value })}
                 placeholder="••••••••"
                 className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Cookie（公众号后台）</label>
+              <input
+                type="password"
+                value={wechat.cookie}
+                onChange={(e) => setWechat({ ...wechat, cookie: e.target.value })}
+                placeholder="从 mp.weixin.qq.com 浏览器提取"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Token（公众号后台）</label>
+              <input
+                type="password"
+                value={wechat.token}
+                onChange={(e) => setWechat({ ...wechat, token: e.target.value })}
+                placeholder="从 mp.weixin.qq.com 浏览器提取"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* DashScope AI 配置 */}
+        <div className="rounded-xl border border-gray-200 bg-white p-6">
+          <h2 className="mb-4 text-lg font-semibold text-gray-900">DashScope AI 配置</h2>
+          <p className="mb-4 text-xs text-gray-400">阿里云 DashScope API Key，用于 AI 改写和去 AI 扫描。</p>
+          <div className="space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">API Key</label>
+              <input
+                type="password"
+                value={dashscope.api_key}
+                onChange={(e) => setDashscope({ api_key: e.target.value })}
+                placeholder="sk-xxxxxxxxxxxxxxxx"
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm font-mono focus:border-blue-500 focus:outline-none"
               />
             </div>
           </div>
