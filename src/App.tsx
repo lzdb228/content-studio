@@ -5,16 +5,23 @@ import SettingsPage from "./pages/SettingsPage";
 import DashboardPage from "./pages/DashboardPage";
 import CollectPage from "./pages/CollectPage";
 import LibraryPage from "./pages/LibraryPage";
-import DistillPage from "./pages/DistillPage";
-import CreatePage from "./pages/CreatePage";
+
+const NAV_ITEMS = [
+  { to: "/dashboard", icon: "□", label: "对标管理" },
+  { to: "/collect",   icon: "⇣", label: "一键采集" },
+  { to: "/library",   icon: "☰", label: "素材库" },
+  { to: "/settings",  icon: "⚙", label: "设置"     },
+];
 
 function Sidebar() {
   const navigate = useNavigate();
   const { username, logout } = useAuthStore();
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition ${
-      isActive ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100"
+    `flex items-center gap-3 px-3 py-1.5 text-[13px] rounded-md transition-colors ${
+      isActive
+        ? "bg-[#2c2c2e] text-white"
+        : "text-[#86868b] hover:bg-[#2c2c2e] hover:text-[#d1d1d6]"
     }`;
 
   const handleLogout = () => {
@@ -23,45 +30,39 @@ function Sidebar() {
   };
 
   return (
-    <aside className="flex h-screen w-56 flex-col border-r border-gray-200 bg-white">
-      <div className="flex items-center gap-2 border-b border-gray-100 px-5 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-          工
+    <aside className="flex h-screen w-[200px] flex-col bg-[#1c1c1e] select-none">
+      {/* Header */}
+      <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-[#2c2c2e]">
+        <div className="flex h-6 w-6 items-center justify-center rounded bg-[#5e6ad2] text-[11px] font-semibold text-white">
+          CS
         </div>
-        <div>
-          <p className="text-sm font-semibold text-gray-900">内容工坊</p>
-          <p className="text-xs text-gray-400">{username}</p>
-        </div>
+        <span className="text-[13px] font-medium text-[#d1d1d6]">内容工坊</span>
       </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        <NavLink to="/dashboard" className={linkClass}>
-          📋 对标管理
-        </NavLink>
-        <NavLink to="/collect" className={linkClass}>
-          ⚡ 一键采集
-        </NavLink>
-        <NavLink to="/distill" className={linkClass}>
-          🎨 风格蒸馏
-        </NavLink>
-        <NavLink to="/create" className={linkClass}>
-          ✨ 创作工坊
-        </NavLink>
-        <NavLink to="/library" className={linkClass}>
-          📚 素材库
-        </NavLink>
-        <NavLink to="/settings" className={linkClass}>
-          ⚙️ 设置
-        </NavLink>
+      {/* Nav */}
+      <nav className="flex-1 space-y-0.5 px-2.5 py-3">
+        {NAV_ITEMS.map((item) => (
+          <NavLink key={item.to} to={item.to} className={linkClass}>
+            <span className="w-4 text-center text-xs opacity-60">{item.icon}</span>
+            {item.label}
+          </NavLink>
+        ))}
       </nav>
 
-      <div className="border-t border-gray-100 px-3 py-4">
-        <button
-          onClick={handleLogout}
-          className="w-full rounded-lg py-2 text-sm text-gray-500 hover:bg-gray-100 transition"
-        >
-          退出登录
-        </button>
+      {/* User */}
+      <div className="border-t border-[#2c2c2e] px-3 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#3a3a3c] text-[10px] font-medium text-[#d1d1d6]">
+            {username?.[0]?.toUpperCase() || "?"}
+          </div>
+          <span className="flex-1 truncate text-[12px] text-[#86868b]">{username}</span>
+          <button
+            onClick={handleLogout}
+            className="text-[11px] text-[#5e6ad2] hover:text-[#7b85e8] transition-colors"
+          >
+            退出
+          </button>
+        </div>
       </div>
     </aside>
   );
@@ -80,7 +81,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-[#f5f5f7] overflow-hidden">
       <Sidebar />
       <main className="flex-1 overflow-auto">
         <Routes>
@@ -88,8 +89,6 @@ export default function App() {
           <Route path="/login" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/collect" element={<CollectPage />} />
-          <Route path="/distill" element={<DistillPage />} />
-          <Route path="/create" element={<CreatePage />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
