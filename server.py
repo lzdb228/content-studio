@@ -14,7 +14,7 @@ from scripts.bitable import get_styles, get_articles, save_article, add_style, g
 from scripts.rewrite import ai_rewrite
 from scripts.scan import ai_scan
 
-app = FastAPI(title="内容工坊 API")
+app = FastAPI(title="微信公众号内容工厂 API")
 
 app.add_middleware(
     CORSMiddleware,
